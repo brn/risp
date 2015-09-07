@@ -1,0 +1,7 @@
+(defn + [a b] (core/add a b))
+(defmacro + [a b] (cor/add a b))
+(def x 1)
+(def add (fn [a b] (fn [c d] (core/add (core/add (core/add a b) c) d))))
+(add (quote (1 2 3)))
+(if x (printf "%d\n" (+ 1 2))
+    (printf "%d\n" (+ 2 2)))

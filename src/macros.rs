@@ -22,18 +22,3 @@ macro_rules! gb {
         mb!($val) * 1024
     }
 }
-
-
-macro_rules! ast_add_child {
-    ($ast: expr, $child: expr) => {
-        match *$ast {
-            Ast::Form(ref f) => {
-                f.add_child($child);
-            }
-            Ast::Module(ref f) => {
-                f.add_child($child);
-            },
-            _ => {}
-        }
-    }
-}

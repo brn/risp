@@ -24,23 +24,27 @@ const REGEXP: &'static str = r#"(?x)
               (?P<left_bracket>\[)|
               (?P<right_bracket>\])|
               (?P<short_lambda>\#\()|
+              (?P<quote>quote(?:\s+))|
+              (?P<fn>fn(?:\s+))|
+              (?P<if>if(?:\s+))|
+              (?P<def>def(?:\s+))|
+              (?P<defmacro>defmacro(?:\s+))|
               (?P<param_name>%(?:[1-9][0-9]*|&)?)|
-              (?P<int>[0-9]+)|
+              (?P<int>-?[0-9]+)|
               (?P<float>-?(?:[0-9]+(?:\.[0-9]+)?(?:[eE]-?[0-9]+)?|Infinity|NaN))|
               (?P<hex>0[xX][0-9a-fA-F]+)|
               (?P<bin>0[bB][10]+)|
-              (?P<long>-?[0-9]+[lL]?)|
-              (?P<bign>-?[0-9]+[nN])|
+              (?P<long>-?[0-9]+(?:[lL]))|
+              (?P<bign>-?[0-9]+(?:[nN]))|
               (?P<charu>\\u[0-9D-Fd-f][0-9a-fA-F]{3})|
               (?P<lf>[\n\r])|
               (?P<white_spaces>[\s\t]+)|
-              (?P<string>"(?:\\.|[^"])*")|
+              (?P<string>(?:")(?:\\.|[^"])*(?:"))|
               (?P<regexp>\#"(?:\\.|[^"])*")|
               (?P<nil>nil)|
               (?P<boolean>true|false)|
               (?P<unquote_splicing>~@)|
               (?P<defef>@)|
-              (?P<quote>')|
               (?P<backtick>`)|
               (?P<unquote>~)|
               (?P<tag>\^)|
@@ -113,6 +117,7 @@ impl<'a> Scanner<'a> {
                 Some(cap) => {
                     let matched = self.do_match(&cap);
                     let len = cap.at(0).unwrap().len();
+//                    println!("{}", cap.at(0).unwrap());
                     self.index.set(self.index.get() + len);
                     self.current_pos.set(self.current_pos.get() + len as i32);
                     match matched {
@@ -258,9 +263,11 @@ impl<'a> Scanner<'a> {
 
         match cap.name("string") {
             Some(t) => {
-                let value_id = self.literal_buffer.get(t);
-                self.count_lf(t);
-                return Option::Some(Token::new_value(self.make_info(), value_id, TokenKind::String));
+                unsafe {
+                    let value_id = self.literal_buffer.get(t.slice_unchecked(1, t.len() - 1));
+                    self.count_lf(t);
+                    return Option::Some(Token::new_value(self.make_info(), value_id, TokenKind::String));
+                }
             }
             None => {}
         };
@@ -361,6 +368,43 @@ impl<'a> Scanner<'a> {
             },
             None => {}
         }
+
+        match cap.name("quote") {
+            Some(t) => {
+                return Option::Some(Token::new(self.make_info(), TokenKind::Quote));
+            },
+            None => {}
+        }
+
+        match cap.name("if") {
+            Some(t) => {
+                return Option::Some(Token::new(self.make_info(), TokenKind::If));
+            },
+            None => {}
+        }
+
+        match cap.name("fn") {
+            Some(t) => {
+                return Option::Some(Token::new(self.make_info(), TokenKind::Lambda));
+            },
+            None => {}
+        }
+
+        match cap.name("def") {
+            Some(t) => {
+                return Option::Some(Token::new(self.make_info(), TokenKind::Def));
+            },
+            None => {}
+        }
+
+
+        match cap.name("defmacro") {
+            Some(t) => {
+                return Option::Some(Token::new(self.make_info(), TokenKind::DefMacro));
+            },
+            None => {}
+        }
+
 
         match cap.name("symbol") {
             Some(t) => {

@@ -7,3 +7,4 @@ authors = ["brn <dobaw20@gmail.com>"]
 regex = "0.1.8"
 nix = "*"
 libc = "0.1.6"
+llvm-sys = "0.2.0"
