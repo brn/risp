@@ -45,6 +45,7 @@ pub enum Ast<'a> {
     Quote(Quote<'a>),
     Def(Def<'a>),
     Vector(Vector<'a>),
+    Let(Let<'a>),
     Lambda(Lambda<'a>),
     DefMacro(DefMacro<'a>),
     LambdaSugar(LambdaSugar<'a>),
@@ -71,6 +72,8 @@ pub trait AstVisitor<'a, T> {
 
     fn visit_set(&self, ast: &'a Ast<'a>) -> T;
 
+    fn visit_let(&self, ast: &'a Ast<'a>) -> T;
+    
     fn visit_list(&self, ast: &'a Ast<'a>) -> T;
 
     fn visit_quote(&self, ast: &'a Ast<'a>) -> T;
@@ -124,6 +127,7 @@ impl<'a, 'v> Dispatcher<'a, 'v> for Ast<'a> {
             &Ast::Set(_) => visitor.visit_set(self),
             &Ast::List(_) => visitor.visit_list(self),
             &Ast::Quote(_) => visitor.visit_quote(self),
+            &Ast::Let(_) => visitor.visit_let(self),
             &Ast::If(_) => visitor.visit_if(self),
             &Ast::Def(_) => visitor.visit_def(self),
             &Ast::DefMacro(_) => visitor.visit_defmacro(self),
@@ -156,6 +160,7 @@ macro_rules! ast_name {
             &Ast::List(_) => "List",
             &Ast::Quote(_) => "Quote",
             &Ast::If(_) => "If",
+            &Ast::Let(_) => "Let",
             &Ast::Def(_) => "Def",
             &Ast::Tag(_) => "Tag",
             &Ast::Vector(_) => "Vector",
@@ -263,66 +268,49 @@ macro_rules! literal_impl {
 }
 
 
-macro_rules! unwrap_has_parent {
-    ($ast:expr) => {
+macro_rules! literal_unwrap {
+    ($ast:expr, $t:ty) => {
         match $ast {
-            &Ast::Tag(ref a) => Some(a as &HasParent),
-            &Ast::Map(ref a) => Some(a as &HasParent),
-            &Ast::Set(ref a) => Some(a as &HasParent),
-            &Ast::List(ref a) => Some(a as &HasParent),
-            &Ast::Quote(ref a) => Some(a as &HasParent),
-            &Ast::If(ref a) => Some(a as &HasParent),
-            &Ast::Def(ref a) => Some(a as &HasParent),
-            &Ast::Vector(ref a) => Some(a as &HasParent),
-            &Ast::ModuleReference(ref a) => Some(a as &HasParent),
-            &Ast::Lambda(ref a) => Some(a as &HasParent),
-            &Ast::DefMacro(ref a) => Some(a as &HasParent),
-            &Ast::LambdaSugar(ref a) => Some(a as &HasParent),
-            &Ast::Integer(ref a) => Some(a as &HasParent),
-            &Ast::Double(ref a) => Some(a as &HasParent),
-            &Ast::String(ref a) => Some(a as &HasParent),
-            &Ast::Symbol(ref a) => Some(a as &HasParent),
-            &Ast::UChar(ref a) => Some(a as &HasParent),
-            &Ast::Keyword(ref a) => Some(a as &HasParent),
-            &Ast::Boolean(ref a) => Some(a as &HasParent),
-            &Ast::RegExp(ref a) => Some(a as &HasParent),
-            &Ast::LambdaParam(ref a) => Some(a as &HasParent),
-            &Ast::Nil(ref a) => Some(a as &HasParent),
+            &Ast::Tag(ref a) => Some(a as &$t),
+            &Ast::Map(ref a) => Some(a as &$t),
+            &Ast::Set(ref a) => Some(a as &$t),
+            &Ast::List(ref a) => Some(a as &$t),
+            &Ast::Quote(ref a) => Some(a as &$t),
+            &Ast::Let(ref a) => Some(a as &$t),
+            &Ast::If(ref a) => Some(a as &$t),
+            &Ast::Def(ref a) => Some(a as &$t),
+            &Ast::Vector(ref a) => Some(a as &$t),
+            &Ast::ModuleReference(ref a) => Some(a as &$t),
+            &Ast::Lambda(ref a) => Some(a as &$t),
+            &Ast::DefMacro(ref a) => Some(a as &$t),
+            &Ast::LambdaSugar(ref a) => Some(a as &$t),
+            &Ast::Integer(ref a) => Some(a as &$t),
+            &Ast::Double(ref a) => Some(a as &$t),
+            &Ast::String(ref a) => Some(a as &$t),
+            &Ast::Symbol(ref a) => Some(a as &$t),
+            &Ast::UChar(ref a) => Some(a as &$t),
+            &Ast::Keyword(ref a) => Some(a as &$t),
+            &Ast::Boolean(ref a) => Some(a as &$t),
+            &Ast::RegExp(ref a) => Some(a as &$t),
+            &Ast::LambdaParam(ref a) => Some(a as &$t),
+            &Ast::Nil(ref a) => Some(a as &$t),
             &Ast::Module(ref m) => None
         }
     }
 }
 
+macro_rules! unwrap_has_parent {
+    ($ast:expr) => {
+        literal_unwrap!($ast, HasParent)
+    }
+}
 
 macro_rules! unwrap_has_token {
     ($ast:expr) => {
-        match $ast {
-            &Ast::Tag(ref a) => Some(a as &HasToken),
-            &Ast::Map(ref a) => Some(a as &HasToken),
-            &Ast::Set(ref a) => Some(a as &HasToken),
-            &Ast::List(ref a) => Some(a as &HasToken),
-            &Ast::Quote(ref a) => Some(a as &HasToken),
-            &Ast::If(ref a) => Some(a as &HasToken),
-            &Ast::Def(ref a) => Some(a as &HasToken),
-            &Ast::Vector(ref a) => Some(a as &HasToken),
-            &Ast::ModuleReference(ref a) => Some(a as &HasToken),
-            &Ast::Lambda(ref a) => Some(a as &HasToken),
-            &Ast::DefMacro(ref a) => Some(a as &HasToken),
-            &Ast::LambdaSugar(ref a) => Some(a as &HasToken),
-            &Ast::Integer(ref a) => Some(a as &HasToken),
-            &Ast::Double(ref a) => Some(a as &HasToken),
-            &Ast::String(ref a) => Some(a as &HasToken),
-            &Ast::Symbol(ref a) => Some(a as &HasToken),
-            &Ast::UChar(ref a) => Some(a as &HasToken),
-            &Ast::Keyword(ref a) => Some(a as &HasToken),
-            &Ast::Boolean(ref a) => Some(a as &HasToken),
-            &Ast::RegExp(ref a) => Some(a as &HasToken),
-            &Ast::LambdaParam(ref a) => Some(a as &HasToken),
-            &Ast::Nil(ref a) => Some(a as &HasToken),
-            &Ast::Module(ref m) => None
-        }
+        literal_unwrap!($ast, HasToken)
     }
 }
+
 
 
 macro_rules! unwrap_has_children {
@@ -383,6 +371,11 @@ impl<'a> Scope<'a> {
         })
     }
 
+
+    pub fn map(&self) -> Ref<HashMap<i64, &'a Ast<'a>>> {
+        self.map.borrow()
+    }
+    
 
     pub fn id(&self) -> i32 {
         self.id
@@ -538,6 +531,16 @@ pub struct Vector<'a> {
 generic_impl!(Vector<'a>);
 
 
+pub struct Let<'a> {
+    token: Token<'a>,
+    body: RefCell<Vec<&'a Ast<'a>>>,
+    bindings: RefCell<Vec<(&'a Ast<'a>, &'a Ast<'a>)>>,
+    scope: &'a Scope<'a>,
+    parent: Cell<Option<&'a Ast<'a>>>
+}
+literal_impl!(Let<'a>);
+
+
 pub struct Lambda<'a> {
     token: Token<'a>,
     arguments: RefCell<Vec<&'a Ast<'a>>>,
@@ -603,11 +606,19 @@ literal_impl!(UChar<'a>);
 
 
 #[derive(Copy, Clone)]
+pub enum SymbolDepth {
+    Origin,
+    Depth(u32)
+}
+
+
+#[derive(Copy, Clone)]
 pub enum SymbolMode {
-    Var(u32),
+    Unresolved,
+    Var(SymbolDepth),
     Parameter {
         index: i32,
-        depth: u32
+        depth: SymbolDepth
     }
 }
 
@@ -615,6 +626,7 @@ pub enum SymbolMode {
 pub struct Symbol<'a> {
     token: Token<'a>,
     value: &'a str,
+    bound: Cell<Option<&'a Ast<'a>>>,
     mode: Cell<SymbolMode>,
     parent: Cell<Option<&'a Ast<'a>>>
 }
@@ -758,6 +770,17 @@ impl<'a> Ast<'a> {
     }
 
 
+    pub fn new_let(za: &'a ZoneAllocator, token: Token<'a>, scope: &'a Scope<'a>) -> &'a Ast<'a> {
+        za.alloc(Ast::Let(Let {
+            token: token,
+            bindings: RefCell::new(Vec::new()),
+            body: RefCell::new(Vec::new()),
+            scope: scope,
+            parent: Cell::new(Option::None)
+        }))
+    }
+
+
     pub fn new_lambda(za: &'a ZoneAllocator, token: Token<'a>, scope: &'a Scope<'a>) -> &'a Ast<'a> {
         za.alloc(Ast::Lambda(Lambda {
             token: token,
@@ -822,7 +845,8 @@ impl<'a> Ast<'a> {
             token: token,
             value: value,
             mode: Cell::new(mode),
-            parent: Cell::new(Option::None)
+            bound: Cell::new(None),
+            parent: Cell::new(None)
         }))
     }
 
@@ -900,6 +924,26 @@ impl<'a> Ast<'a> {
     }
 
 
+    pub fn bind_to_symbol(&self, val: &'a Ast<'a>) {
+        match self {
+            &Ast::Symbol(ref s) => {
+                s.bound.set(Some(val))
+            }
+            _ => {panic!("Ast::bind_to_symbol called to non symbol ast.");}
+        }
+    }
+
+
+    pub fn symbol_bounded_value(&self) -> Option<&'a Ast<'a>> {
+        match self {
+            &Ast::Symbol(ref s) => {
+                s.bound.get()
+            }
+            _ => {panic!("Ast::symbol_bounded_value called to non symbol ast.");}
+        }
+    }
+
+
     pub fn set_parent_scope(&self, scope: &'a Scope<'a>) {
         match self {
             &Ast::Lambda(ref l) => {
@@ -907,6 +951,9 @@ impl<'a> Ast<'a> {
             },
             &Ast::DefMacro(ref d) => {
                 d.scope.parent.set(Some(scope));
+            }
+            &Ast::Let(ref l) => {
+                l.scope.parent.set(Some(scope));
             }
             _ => {panic!("set_parent_scope called to non scoped ast.");}
         }
@@ -921,6 +968,9 @@ impl<'a> Ast<'a> {
             &Ast::DefMacro(ref d) => {
                 d.scope.parent.get()
             }
+            &Ast::Let(ref l) => {
+                l.scope.parent.get()
+            }
             _ => {panic!("parent_scope called to non scoped ast.");}
         }
     }
@@ -930,6 +980,7 @@ impl<'a> Ast<'a> {
         match self {
             &Ast::Lambda(ref l) => Some(l.scope),
             &Ast::Module(ref m) => Some(m.scope),
+            &Ast::Let(ref l) => Some(l.scope),
             _ => {panic!("Ast::scope called to not lambda or module ast.");}
         }
     }
@@ -1021,6 +1072,36 @@ impl<'a> Ast<'a> {
                 d.body.borrow_mut().push(body);
             },
             _ => {panic!("add_macro_body called to non defmacro ast.");}
+        }
+    }
+
+
+    pub fn add_let_binding(&self, binding: (&'a Ast<'a>, &'a Ast<'a>)) {
+        match self {
+            &Ast::Let(ref d) => {
+                d.bindings.borrow_mut().push(binding);
+            },
+            _ => {panic!("add_let_binding called to non let ast.");}
+        }
+    }
+
+
+    pub fn add_let_body(&self, body: &'a Ast<'a>) {
+        match self {
+            &Ast::Let(ref d) => {
+                d.body.borrow_mut().push(body);
+            },
+            _ => {panic!("add_let_body called to non let ast.");}
+        }
+    }
+
+
+    pub fn let_body(&self) -> Ref<Vec<&'a Ast<'a>>> {
+        match self {
+            &Ast::Let(ref d) => {
+                d.body.borrow()
+            },
+            _ => {panic!("let_body called to non let ast.");}
         }
     }
 
@@ -1240,6 +1321,20 @@ impl<'a> Ast<'a> {
                         }
                         base
                     }
+                    &Ast::Let(ref l) => {
+                        let mut base = format!("{}{}({})", indent, ast_name!(self), l.scope);
+                        base = format!("{}\n{}  *Bindings", base, indent);
+                        for value in l.bindings.borrow().iter() {
+                            base = format!("{}\n{}{}", base, indent, value.0.to_string_tree_helper(format!("  {}", indent)));
+                            base = format!("{}\n{}", base, value.1.to_string_tree_helper(format!("    {}", indent)));
+                        }
+
+                        base = format!("{}\n{}  *Body", base, indent);
+                        for args in l.body.borrow().iter() {
+                            base = format!("{}\n{}", base, args.to_string_tree_helper(format!("    {}", indent)));
+                        }
+                        base
+                    }
                     &Ast::Lambda(ref l) => {
                         let mut base = format!("{}{}({})", indent, ast_name!(self), l.scope);
                         base = format!("{}\n{}  *Parameters", base, indent);
@@ -1300,8 +1395,27 @@ impl<'a> Ast<'a> {
                     }
                     &Ast::Symbol(ref sym) => {
                         let mode = match sym.mode.get() {
-                            SymbolMode::Var(depth) => format!("Var(depth = {})", depth),
-                            SymbolMode::Parameter{index, depth} => format!("Parameter(index = {}, depth = {})", index, depth)
+                            SymbolMode::Var(depth) => {
+                                match depth {
+                                    SymbolDepth::Origin => {
+                                        "Var(origin)".to_string()
+                                    },
+                                    SymbolDepth::Depth(d) => {
+                                        format!("Var(depth = {})", d)
+                                    }
+                                }
+                            }
+                            SymbolMode::Parameter{index, depth} => {
+                                match depth {
+                                    SymbolDepth::Origin => {
+                                        format!("Parameter(index = {}, origin)", index)
+                                    },
+                                    SymbolDepth::Depth(d) => {
+                                        format!("Parameter(index = {}, depth = {})", index, d)
+                                    }
+                                }
+                            }
+                            SymbolMode::Unresolved => "Unresolved".to_string(),
                         };
                         format!("{}Symbol[mode = {}]({}, {})", indent, mode, sym.token(), sym.value)
                     }

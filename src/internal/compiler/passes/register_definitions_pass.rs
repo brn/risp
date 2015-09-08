@@ -57,6 +57,8 @@ impl<'a, 'b> AstVisitor<'a, bool> for RegisterDefinitionPass<'a, 'b> {
 
     fn visit_if(&self, ast: &'a Ast<'a>) -> bool {true}
 
+    fn visit_let(&self, ast: &'a Ast<'a>) -> bool {true}
+
     fn visit_def(&self, ast: &'a Ast<'a>) -> bool {true}
 
     fn visit_vector(&self, ast: &'a Ast<'a>) -> bool {true}

@@ -24,7 +24,10 @@ const REGEXP: &'static str = r#"(?x)
               (?P<left_bracket>\[)|
               (?P<right_bracket>\])|
               (?P<short_lambda>\#\()|
+              (?P<string>(?:")(?:\\.|[^"])*(?:"))|
+              (?P<quote_rm>')|
               (?P<quote>quote(?:\s+))|
+              (?P<let>let(?:\s+))|
               (?P<fn>fn(?:\s+))|
               (?P<if>if(?:\s+))|
               (?P<def>def(?:\s+))|
@@ -39,7 +42,6 @@ const REGEXP: &'static str = r#"(?x)
               (?P<charu>\\u[0-9D-Fd-f][0-9a-fA-F]{3})|
               (?P<lf>[\n\r])|
               (?P<white_spaces>[\s\t]+)|
-              (?P<string>(?:")(?:\\.|[^"])*(?:"))|
               (?P<regexp>\#"(?:\\.|[^"])*")|
               (?P<nil>nil)|
               (?P<boolean>true|false)|
@@ -310,6 +312,13 @@ impl<'a> Scanner<'a> {
             None => {}
         };
 
+        match cap.name("quote_rm") {
+            Some(t) => {
+                return Option::Some(Token::new(self.make_info(), TokenKind::QuoteRm));
+            }
+            None => {}
+        };
+
         match cap.name("quote") {
             Some(t) => {
                 return Option::Some(Token::new(self.make_info(), TokenKind::Quote));
@@ -386,6 +395,13 @@ impl<'a> Scanner<'a> {
         match cap.name("fn") {
             Some(t) => {
                 return Option::Some(Token::new(self.make_info(), TokenKind::Lambda));
+            },
+            None => {}
+        }
+
+        match cap.name("let") {
+            Some(t) => {
+                return Option::Some(Token::new(self.make_info(), TokenKind::Let));
             },
             None => {}
         }

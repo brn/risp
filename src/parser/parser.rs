@@ -149,6 +149,9 @@ impl<'a> Parser<'a> {
             TokenKind::Quote => {
                 return self.parse_quote(Ast::new_quote(self.zone_allocator, token));
             }
+            TokenKind::Let => {
+                return self.parse_let(token);
+            }
             TokenKind::Lambda => {
                 return self.parse_lambda(token);
             },
@@ -187,14 +190,81 @@ impl<'a> Parser<'a> {
     }
 
 
-    fn parse_def(&self, token: Token<'a>) -> ParseResult<'a > {
+    fn parse_let(&self, token: Token<'a>) -> ParseResult<'a> {
+        return self.scope_handler.enter(|scope: &'a Scope<'a>| -> ParseResult<'a> {
+            let let_form = Ast::new_let(self.zone_allocator, token, scope);
+            let mut next_token = self.scanner.scan();
+            let mut binding: &'a Ast<'a>;
+            
+            if !next_token.is(TokenKind::LeftBracket) {
+                return Err(ParseError::new("let expect vector binding form.", next_token));
+            }
+
+            next_token = self.scanner.scan();
+
+            loop {
+                match self.parse_literal(next_token) {
+                    Ok(ast) => {
+                        match ast {
+                            &Ast::Symbol(ref s) => {
+                                match ast.symbol_mode() {
+                                    SymbolMode::Unresolved => {
+                                        ast.set_symbol_mode(SymbolMode::Var(SymbolDepth::Origin));
+                                    }
+                                    _ => {}
+                                }
+                                binding = ast;
+                                scope.intern(binding);
+                            }
+                            _ => {return Err(ParseError::new("Invalid binding form", next_token));}
+                        }
+                    }
+                    Err(e) => {return Err(e);}
+                }
+
+                next_token = self.scanner.scan();
+                match self.do_parse_form(let_form, next_token, |ast: &'a Ast<'a>| {
+                    binding.bind_to_symbol(ast);
+                    let_form.add_let_binding((binding, ast));
+                }) {
+                    Err(e) => {return Err(ParseError::new("let form expected symbol-value pair.", next_token));}
+                    _ => {}
+                }
+
+                next_token = self.scanner.scan();
+                if next_token.is(TokenKind::RightBracket) {
+                    break;
+                }
+            }
+
+            next_token = self.scanner.scan();
+            loop {
+                match self.do_parse_form(let_form, next_token, |ast: &'a Ast<'a>| let_form.add_let_body(ast)) {
+                    Err(e) => {return Err(e);},
+                    _ => {}
+                }
+
+                next_token = self.scanner.scan();
+                if next_token.is(TokenKind::RightParen) {
+                    return Ok(let_form);
+                }
+            }
+        });
+    }
+
+
+    fn parse_def(&self, token: Token<'a>) -> ParseResult<'a> {
         let def_ast = Ast::new_def(self.zone_allocator, token);        
         let mut next_token = self.scanner.scan();
+        let binding: &'a Ast<'a>;
+        
         match self.parse_literal(next_token) {
             Ok(ast) => {
                 match ast {
                     &Ast::Symbol(ref s) => {
+                        ast.set_symbol_mode(SymbolMode::Var(SymbolDepth::Origin));
                         self.intern_scope(ast);
+                        binding = ast;
                     }
                     _ => {return Err(ParseError::new("The first argument of def must be a symbol.", next_token));}
                 }
@@ -204,7 +274,10 @@ impl<'a> Parser<'a> {
         }
 
         next_token = self.scanner.scan();
-        match self.do_parse_form(def_ast, next_token, |ast: &'a Ast<'a>| def_ast.set_def_expr(ast)) {
+        match self.do_parse_form(def_ast, next_token, |ast: &'a Ast<'a>| {
+            def_ast.set_def_expr(ast);
+            binding.bind_to_symbol(ast);
+        }) {
             Err(e) => {return Err(e);}
             _ => {}
         }
@@ -237,7 +310,7 @@ impl<'a> Parser<'a> {
                     match ast {
                         &Ast::Symbol(ref s) => {
                             self.intern_scope(ast);
-                            ast.set_symbol_mode(SymbolMode::Parameter{index: index, depth: 0});
+                            ast.set_symbol_mode(SymbolMode::Parameter{index: index, depth: SymbolDepth::Origin});
                         }
                         _ => {}
                     }
@@ -249,19 +322,19 @@ impl<'a> Parser<'a> {
                 index += 1;
             }
 
-
             token = self.scanner.scan();
-            match self.do_parse_form(lambda, token, |ast: &'a Ast<'a>| lambda.add_lambda_body(ast)) {
-                Err(e) => {return Err(e);}
-                _ => {}
-            }
 
-            token = self.scanner.scan();
-            if token.kind() == TokenKind::RightParen {
-                return Ok(lambda);
-            }
+            loop {
+                match self.do_parse_form(lambda, token, |ast: &'a Ast<'a>| lambda.add_lambda_body(ast)) {
+                    Err(e) => {return Err(e);}
+                    _ => {}
+                }
 
-            Err(ParseError::new("lambda close paren [)] expected.", token))
+                token = self.scanner.scan();
+                if token.kind() == TokenKind::RightParen {
+                    return Ok(lambda);
+                }
+            }
         });
     }
 
@@ -269,6 +342,7 @@ impl<'a> Parser<'a> {
     fn parse_defmacro(&self) -> ParseResult<'a> {
         return self.scope_handler.enter(|scope: &'a Scope<'a>| -> ParseResult<'a> {
             let mut token = self.scanner.scan();
+
             if token.kind() != TokenKind::Symbol {
                 return Err(ParseError::new("defmacro name expected symbol.", token));
             }
@@ -276,7 +350,14 @@ impl<'a> Parser<'a> {
             let defmacro;
             match self.parse_literal(token) {
                 Ok(ast) => {
+                    match ast {
+                        &Ast::Symbol(ref s) => {
+                            ast.set_symbol_mode(SymbolMode::Var(SymbolDepth::Origin));
+                        }
+                        _ => {return Err(ParseError::new("The first argument of defmacro must be a symbol.", token));}
+                    }
                     defmacro = Ast::new_defmacro(self.zone_allocator, token, ast, scope);
+                    ast.bind_to_symbol(defmacro);
                 },
                 Err(e) => {return Err(e);}
             }
@@ -297,7 +378,7 @@ impl<'a> Parser<'a> {
                     match ast {
                         &Ast::Symbol(ref s) => {
                             self.intern_scope(ast);
-                            ast.set_symbol_mode(SymbolMode::Parameter{index: index, depth: 0});
+                            ast.set_symbol_mode(SymbolMode::Parameter{index: index, depth: SymbolDepth::Origin});
                         }
                         _ => {}
                     }
@@ -569,6 +650,14 @@ impl<'a> Parser<'a> {
             TokenKind::Nil => {
                 Ok(Ast::new_nil(self.zone_allocator, token))
             }
+            TokenKind::QuoteRm => {
+                let q = Ast::new_quote(self.zone_allocator, token);
+                let next_token = self.scanner.scan();
+                return match self.do_parse_form(q, next_token, |ast: &'a Ast<'a>| q.set_quote_expr(ast)) {
+                    Err(e) => Err(e),
+                    Ok(ast) => Ok(q)
+                };
+            }
             _ => {
                 Err(ParseError::new("Invalid Token.", token))
             }
@@ -580,14 +669,14 @@ impl<'a> Parser<'a> {
         let v = get_token_value!(self, token);
         let sp: Vec<&'a str> = v.split('/').collect();
         if sp.len() == 1 {
-            let sym = Ast::new_symbol(self.zone_allocator, token, v, SymbolMode::Var(0));
+            let sym = Ast::new_symbol(self.zone_allocator, token, v, SymbolMode::Unresolved);
             match self.find_scope(sym) {
                 Some((d, s)) => {
                     match s.symbol_mode() {
                         SymbolMode::Parameter{index, depth} => {
-                            sym.set_symbol_mode(SymbolMode::Parameter {index: index, depth: d});
+                            sym.set_symbol_mode(SymbolMode::Parameter {index: index, depth: SymbolDepth::Depth(d)});
                         },
-                        _ => {sym.set_symbol_mode(SymbolMode::Var(d));}
+                        _ => {sym.set_symbol_mode(SymbolMode::Var(SymbolDepth::Depth(d)));}
                     }
                 }
                 None => {}
@@ -597,7 +686,7 @@ impl<'a> Parser<'a> {
 
         let mr = Ast::new_module_reference(self.zone_allocator, token);
         for ns in sp {
-            mr.add_child(Ast::new_symbol(self.zone_allocator, token, ns, SymbolMode::Var(0)));
+            mr.add_child(Ast::new_symbol(self.zone_allocator, token, ns, SymbolMode::Var(SymbolDepth::Depth(0))));
         }
         return Ok(mr);
     }

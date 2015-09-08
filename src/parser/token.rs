@@ -15,6 +15,7 @@ pub enum TokenKind {
     Symbol,
     Lambda,
     ShortLambdaBegin,
+    Let,
     If,
     Def,
     DefMacro,
@@ -46,6 +47,7 @@ pub enum TokenKind {
     LeftBrace,
     RightBrace,
     Quote,
+    QuoteRm,
     KQuote,
     Colon,
     Eof
